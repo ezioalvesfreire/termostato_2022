@@ -15,6 +15,7 @@ void setup() {
 void loop() {
   float temperature = dht.readTemperature();
   float temperatureF = dht.readTemperature(true);
+  float humidity = dht.readHumidity();
 
   if(isnan(temperature)){
      Serial.println("Falha na captura");
@@ -29,6 +30,11 @@ void loop() {
     Serial.print("Temperatura: ");
     Serial.print(temperatureF);
     Serial.print("°F");
+    Serial.println();
+
+    Serial.print("Umidade: ");
+    Serial.print(humidity);
+    Serial.print("%");
     Serial.println();
 
     delay(3000);
