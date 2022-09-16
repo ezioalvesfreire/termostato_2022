@@ -10,7 +10,7 @@
 WiFiClient espClient;
 PubSubClient MQTT(espClient);
 
-const char* BROKER_MQTT = "https://test.mosquitto.org/"; 
+const char* BROKER_MQTT = "broker.mqtt-dashboard.com"; 
 int BROKER_PORT = 1883;
 
 #define ID_MQTT "Term_01"
@@ -18,11 +18,6 @@ int BROKER_PORT = 1883;
 
 
 DHT dht(DHTPIN, DHTTYPE);
-
-float temperature = dht.readTemperature();
-float temperatureF = dht.readTemperature(true);
-float humidity = dht.readHumidity();
-
 
 void setup() {
     
@@ -52,12 +47,16 @@ void setup() {
 }
 
 void loop() {
-
+  float temperature = dht.readTemperature();
+  float temperatureF = dht.readTemperature(true);
+  float humidity = dht.readHumidity();
+  
   payload();
   MQTT.loop();
 
   if(isnan(temperature) || isnan(temperatureF)|| isnan(humidity)){
      Serial.println("Falha na captura sensor DHT!");
+     delay(waitTimeDHT);
      return;
     }    
     
@@ -96,6 +95,6 @@ void conectMQTT() {
 
 void payload() {
 //  MQTT.publish(TOPIC_PUBLISH, temperature);
-  MQTT.publish(TOPIC_PUBLISH, "1");
+    MQTT.publish(TOPIC_PUBLISH, "1");
 
 }
