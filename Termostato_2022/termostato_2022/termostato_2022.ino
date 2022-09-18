@@ -1,100 +1,106 @@
-#include <ESP8266WiFi.h>
-#include "DHT.h"
 #include <PubSubClient.h>
+#include <ESP8266WiFi.h>
 
-#define DHTPIN 12
-#define DHTTYPE DHT11
-#define waitTimeDHT 3000
-#define waitTimeWI_FI 500
+//Informações do WiFi
+#define WIFISSID "VIVO-8965"
+#define WIDIPASS "C9D3C88965"
 
-WiFiClient espClient;
-PubSubClient MQTT(espClient);
+//Informações do Servidor MQTT
+const char* mqttserver = "broker.mqtt-dashboard.com";
+int mqttserverport = 1883;
+//const char* mqttuser = "usuario do servidor MQTT";
+//const char* mqttpass = "senha do servidor MQTT";
 
-const char* BROKER_MQTT = "broker.mqtt-dashboard.com"; 
-int BROKER_PORT = 1883;
+//Variáveis
+WiFiClient wifiClient;
+PubSubClient ConexaoMQTT(wifiClient);
+int UltimoValor = 0;
+int TimeCounter = 0;
 
-#define ID_MQTT "Term_01"
-#define TOPIC_PUBLISH "DeviceTempUmid_01"
+//Pinos
+const int PINbotao = 5;
 
-
-DHT dht(DHTPIN, DHTTYPE);
+void reconnect() {
+  ConexaoMQTT.setServer(mqttserver, mqttserverport);
+  while (!ConexaoMQTT.connected()) {
+    Serial.println("Conectando ao Broker MQTT");
+   // ConexaoMQTT.connect("esp8266",mqttuser,mqttpass);
+    delay(3000);
+  }
+  Serial.println("MQTT conectado");
+}
 
 void setup() {
-    
-  Serial.begin(115200);  
-  WiFi.begin("VIVO-8965", "C9D3C88965");  
-  dht.begin();
-  
-  void conectMQTT(); 
-  void payload();
-
-  MQTT.setServer(BROKER_MQTT, BROKER_PORT);
-
- Serial.print("Connecting");
+  Serial.begin(115200);
+  Serial.println();
+  Serial.print("MAC: ");
+  Serial.println(WiFi.macAddress());
+  IPAddress ip(192, 168, 15, 155);
+  IPAddress gateway(192, 168, 15, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  IPAddress dns(192, 168, 15, 1);
+  WiFi.config(ip, dns, gateway, subnet);
+  WiFi.begin(WIFISSID, WIDIPASS);
+  delay(5000);
   while (WiFi.status() != WL_CONNECTED)
   {
-    delay(waitTimeWI_FI);
+    delay(500);
     Serial.print(".");
   }
-  Serial.println();
-
-  Serial.print("Connected, IP address: ");
+  Serial.println("");
+  Serial.print("Conectado! IP address: ");
   Serial.println(WiFi.localIP());
 
-   if (!MQTT.connected()) {
-       conectMQTT(); 
-    }        
+  if (!ConexaoMQTT.connected()) {
+    reconnect();
+  }
+  
+  pinMode(PINbotao, INPUT); 
+
+  //Configura Sensores através do MQTT Discovery do Home Assistant
+  String novosensor = "{\"expire_after\": \"600\", \"icon\": \"mdi:gesture-tap-button\", \"name\": \"Interruptor 1 ESP8266\", \"state_topic\": \"esp8266/interruptor1/state\"}";
+  ConexaoMQTT.publish("homeassistant/binary_sensor/esp8266/interruptor1/config",novosensor.c_str(),false);
+
+  //Primeira leitura
+  int LeituraSwitchD1Pin = digitalRead(PINbotao);
+  Serial.print("Primeira Leitura: ");
+  Serial.println(LeituraSwitchD1Pin);
+  if (LeituraSwitchD1Pin == 0) {
+    UltimoValor = LeituraSwitchD1Pin;
+    ConexaoMQTT.publish("esp8266/interruptor1/state","OFF");
+  } else if (LeituraSwitchD1Pin == 1) {
+    UltimoValor = LeituraSwitchD1Pin;
+    ConexaoMQTT.publish("esp8266/interruptor1/state","ON");
+  }
 }
 
 void loop() {
-  float temperature = dht.readTemperature();
-  float temperatureF = dht.readTemperature(true);
-  float humidity = dht.readHumidity();
+  if (!ConexaoMQTT.connected()) {
+    reconnect();
+  }
   
-  payload();
-  MQTT.loop();
-
-  if(isnan(temperature) || isnan(temperatureF)|| isnan(humidity)){
-     Serial.println("Falha na captura sensor DHT!");
-     delay(waitTimeDHT);
-     return;
-    }    
-    
-    Serial.print("Temperatura: ");
-    Serial.print(temperature);
-    Serial.print("°C");
-    Serial.println();
-    
-    Serial.print("Temperatura: ");
-    Serial.print(temperatureF);
-    Serial.print("°F");
-    Serial.println();
-
-    Serial.print("Umidade: ");
-    Serial.print(humidity);
-    Serial.print("%");
-    Serial.println();
-
-    delay(waitTimeDHT);
-}
-
-void conectMQTT() { 
-    while (!MQTT.connected()) {
-        Serial.print("Conectando ao Broker MQTT: ");
-        Serial.println(BROKER_MQTT);
-        if (MQTT.connect(ID_MQTT)) {
-            Serial.println("Conectado ao Broker com sucesso!");
-        } 
-        else {
-            Serial.println("Não foi possivel se conectar ao broker.");
-            Serial.println("Nova tentativa de conexao em 10s");
-            delay(10000);
-        }
+  int LeituraSwitchD1Pin = digitalRead(PINbotao);
+  Serial.println(LeituraSwitchD1Pin);
+  if (LeituraSwitchD1Pin != UltimoValor) {
+    if (LeituraSwitchD1Pin == 0) {
+      UltimoValor = LeituraSwitchD1Pin;
+      ConexaoMQTT.publish("esp8266/interruptor1/state","OFF");
+    } else if (LeituraSwitchD1Pin == 1) {
+      UltimoValor = LeituraSwitchD1Pin;
+      ConexaoMQTT.publish("esp8266/interruptor1/state","ON");
     }
-}
-
-void payload() {
-//  MQTT.publish(TOPIC_PUBLISH, temperature);
-    MQTT.publish(TOPIC_PUBLISH, "1");
-
+  }
+  if (TimeCounter < 600) {
+    TimeCounter++;
+  } else if (TimeCounter >= 600) {
+    if (LeituraSwitchD1Pin == 0) {
+      UltimoValor = LeituraSwitchD1Pin;
+      ConexaoMQTT.publish("esp8266/interruptor1/state","OFF");
+    } else if (LeituraSwitchD1Pin == 1) {
+      UltimoValor = LeituraSwitchD1Pin;
+      ConexaoMQTT.publish("esp8266/interruptor1/state","ON");
+    }
+    TimeCounter = 0;
+  }
+  delay(500);
 }
