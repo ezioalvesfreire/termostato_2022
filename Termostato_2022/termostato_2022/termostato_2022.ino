@@ -23,6 +23,8 @@ byte modoPinos[qtdePinosDigitais]     = {INPUT_PULLUP,  OUTPUT,  OUTPUT,  OUTPUT
 const byte qtdePinosAnalogicos = 1;
 byte pinosAnalogicos[qtdePinosAnalogicos] = {A0};
 
+float limitT = 90;
+
 DHT dht(DHTPIN, DHTTYPE);
 
 WiFiClient espClient;
@@ -103,12 +105,14 @@ void loop() {
 
     delay(waitTimeDHT);
 
+    cooler(temperatureF, limitT);
+/*
     if(temperatureF >= 90){      
        digitalWrite(statusCooler,HIGH);
                            
       }else{                                        
           digitalWrite(statusCooler,LOW);
-    }    
+    }  */  
 }
 
 void conectMQTT() { 
@@ -131,3 +135,11 @@ void payload() {
     MQTT.publish(TOPIC_PUBLISH, "1");
 
 }
+void cooler(float t, float l){
+      if(t >= limitT){      
+       digitalWrite(statusCooler,HIGH);
+                           
+      }else{                                        
+          digitalWrite(statusCooler,LOW);
+    } 
+  }
